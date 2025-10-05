@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ciudades del Futuro | Desarrollo Urbano 2050</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #fff;
+            overflow-x: hidden;
+        }
+
+        @keyframes gradient-transition{
+            0% {
+                background-position: 0%;
+                background-size: 300% 100%;
+            }
+            100% {
+                background-position: 100%;
+                background-size: 300% 100%;
+            }
+        }
+
+        .hero {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        h1 {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, #00d4ff, #00ff88, #00d4ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: glow 1.2s ease-in-out infinite alternate, gradient-transition 3s linear infinite;
+        }
+
+        @keyframes glow {
+            from { filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.5)); }
+            to { filter: drop-shadow(0 0 20px rgba(0, 255, 136, 0.8)); }
+        }
+
+        .subtitle {
+            font-size: 1.5rem;
+            margin-bottom: 3rem;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+        }
+
+        .section {
+            margin-bottom: 6rem;
+        }
+
+        .section-title {
+            font-size: 2.5rem;
+            margin-bottom: 3rem;
+            text-align: center;
+            position: relative;
+        }
+
+        .section-title::after {
+            content: '';
+            display: block;
+            width: 100px;
+            height: 4px;
+            background: linear-gradient(90deg, #00d4ff, #00ff88, #00d4ff, #00ff88);
+            animation: gradient-transition 3s linear infinite;
+            margin: 1rem auto;
+            border-radius: 2px;
+        }
+
+        .simulator-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+            margin-top: 2rem;
+        }
+
+        .control-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .city-selector {
+            margin-bottom: 2rem;
+        }
+
+        .city-selector label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: bold;
+            color: #00d4ff;
+        }
+
+        .city-selector select {
+            width: 100%;
+            padding: 0.8rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 1rem;
+        }
+
+        .intervention-group {
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .intervention-group h4 {
+            color: #00ff88;
+            margin-bottom: 0.8rem;
+            font-size: 1.1rem;
+        }
+
+        .slider-control {
+            margin-bottom: 1rem;
+        }
+
+        .slider-control label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.3rem;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .slider-control input[type="range"] {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 5px;
+            outline: none;
+        }
+
+        .slider-control input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            background: linear-gradient(45deg, #00d4ff, #00ff88);
+            cursor: pointer;
+            border-radius: 50%;
+        }
+
+        .results-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .result-card {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 1.5rem;
+            border-radius: 15px;
+            border-left: 4px solid var(--accent-color);
+        }
+
+        .result-card.heat { --accent-color: #ff6b6b; }
+        .result-card.co2 { --accent-color: #00ff88; }
+        .result-card.energy { --accent-color: #ffd700; }
+        .result-card.pollution { --accent-color: #4ecdc4; }
+        .result-card.transport { --accent-color: #a78bfa; }
+
+        .result-card h4 {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 0.5rem;
+        }
+
+        .result-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent-color);
+            margin: 0.5rem 0;
+        }
+
+        .result-desc {
+            font-size: 0.85rem;
+            opacity: 0.7;
+            line-height: 1.4;
+        }
+
+        .comparison-bar {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .bar-container {
+            flex: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            transition: width 0.5s ease;
+        }
+
+        .bar-fill.heat {
+            background: linear-gradient(90deg, #ff6b6b, transparent);
+        }
+
+        .bar-fill.co2 {
+            background: linear-gradient(90deg, #00ff88, transparent);
+        }
+
+        .reset-btn, .apply-btn {
+            width: 100%;
+            padding: 1rem;
+            margin-top: 1rem;
+            background: linear-gradient(45deg, #00d4ff, #00ff88, #00ff88);
+            background-size: 200% 100%;
+            border: none;
+            border-radius: 10px;
+            color: #0f0c29;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: transform 0.25s, background-position 0.2s ease-in-out;
+        }
+
+        .reset-btn {
+            background: rgba(255, 107, 107, 0.3);
+            color: #fff;
+        }
+
+        .reset-btn:hover, .apply-btn:hover {
+            transform: translateY(-2px);
+            background-position: 80%;
+        }
+
+        .info-badge {
+            display: inline-block;
+            background: rgba(0, 212, 255, 0.2);
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 1024px) {
+            .simulator-container {
+                grid-template-columns: 1fr;
+            }
+            h1 { font-size: 2.5rem; }
+        }
+
+        #AI_note {
+            text-align: center;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="hero">
+        <h1>Cities for the future</h1>
+        <p class="subtitle">Sustainable Urban Development Modelling</p>
+    </div>
+
+    <div class="container">
+        <section class="section">
+            <h2 class="section-title">Interactive City Simulator</h2>
+            <p style="text-align: center; opacity: 0.8; margin-bottom: 2rem;">
+                Model based on NASA's Power data and urban-development scientific reports
+            </p>
+
+            <div class="simulator-container">
+                <div class="control-panel">
+                    <div class="info-badge">Control panel</div>
+                    
+                    <div class="city-selector">
+                        <label>Select a city to preview.</label>
+                        <select id="citySelect">
+                            <option value="barcelona">Barcelona</option>
+                            <option value="madrid">Madrid</option>
+                            <option value="sevilla">Seville</option>
+                            <option value="tokyo">Tokyo</option>
+                            <option value="newyork">Ney York</option>
+                            <option value="london">London</option>
+                            <option value="singapore">Singapour</option>
+                        </select>
+                    </div>
+
+                    <div class="intervention-group">
+                        <h4>🌳 Green Areas and Nature</h4>
+                        <div class="slider-control">
+                            <label>
+                                <span>Aditional Green Cover</span>
+                                <span id="greenCoverValue">0%</span>
+                            </label>
+                            <input type="range" id="greenCover" min="0" max="20" value="0" step="1">
+                        </div>
+                        <div class="slider-control">
+                            <label>
+                                <span>Urban Forstes</span>
+                                <span id="urbanForestsValue">0 km²</span>
+                            </label>
+                            <input type="range" id="urbanForests" min="0" max="30" value="0" step="1">
+                        </div>
+                    </div>
+
+                    <div class="intervention-group">
+                        <h4>🏢 Buildings and Rooftops</h4>
+                        <div class="slider-control">
+                            <label>
+                                <span>Cool Roofs</span>
+                                <span id="coldRoofsValue">0%</span>
+                            </label>
+                            <input type="range" id="coldRoofs" min="0" max="50" value="0" step="5">
+                        </div>
+                        <div class="slider-control">
+                            <label>
+                                <span>Green Roofs</span>
+                                <span id="greenRoofsValue">0%</span>
+                            </label>
+                            <input type="range" id="greenRoofs" min="0" max="30" value="0" step="5">
+                        </div>
+                        <div class="slider-control">
+                            <label>
+                                <span>Solar Panel Coverings</span>
+                                <span id="solarRoofsValue">0%</span>
+                            </label>
+                            <input type="range" id="solarRoofs" min="0" max="50" value="0" step="5">
+                        </div>
+                    </div>
+
+                    <div class="intervention-group">
+                        <h4>🚴 Mobility and Transports</h4>
+                        <div class="slider-control">
+                            <label>
+                                <span>Bike Lanes</span>
+                                <span id="bikeLanesValue">0 km</span>
+                            </label>
+                            <input type="range" id="bikeLanes" min="0" max="200" value="0" step="10">
+                        </div>
+                        <div class="slider-control">
+                            <label>
+                                <span>Increased Bus Frequency</span>
+                                <span id="busLinesValue">0%</span>
+                            </label>
+                            <input type="range" id="busLines" min="0" max="100" value="0" step="10">
+                        </div>
+                        <div class="slider-control">
+                            <label>
+                                <span>New Underground Lines</span>
+                                <span id="metroLinesValue">0 km</span>
+                            </label>
+                            <input type="range" id="metroLines" min="0" max="50" value="0" step="5">
+                        </div>
+                        <div class="slider-control">
+                            <label>
+                                <span>Pedestrian Areas</span>
+                                <span id="pedestrianZonesValue">0 km²</span>
+                            </label>
+                            <input type="range" id="pedestrianZones" min="0" max="20" value="0" step="1">
+                        </div>
+                    </div>
+
+                    <div class="intervention-group" style="background: rgba(0, 0, 0, 0.09);">
+                        <h4 style="color: #fff">📈 Urban Growth</h4>
+                        <div class="slider-control">
+                            <label>
+                                <span>Population Growth</span>
+                                <span id="populationGrowthValue">0%</span>
+                            </label>
+                            <input type="range" id="populationGrowth" min="-20" max="50" value="0" step="5">
+                        </div>
+                        <div class="slider-control">
+                            <label>
+                                <span>Urban Sprawling</span>
+                                <span id="populationSpreadValue">0%</span>
+                            </label>
+                            <input type="range" id="populationSpread" min="0" max="50" value="0" step="5">
+                        </div>
+                    </div>
+
+                    <button class="apply-btn" id="applyBtn">🚀 Apply Changes</button>
+                    <button class="reset-btn" id="resetBtn">🔄 Reset</button>
+                </div>
+
+                <div class="results-panel">
+                    <div class="info-badge">Model predictions</div>
+                    <h3 style="margin-bottom: 1rem;">Impact of your interventions</h3>
+                    
+                    <div class="results-grid">
+                        <div class="result-card heat">
+                            <h4>🌡️ Urban Heat Island</h4>
+                            <div class="result-value" id="uhiValue">+0.0°C</div>
+                            <div class="result-desc">IHU total effect</div>
+                            <div class="comparison-bar">
+                                <span style="font-size: 0.8rem;">0°C</span>
+                                <div class="bar-container">
+                                    <div class="bar-fill heat" id="uhiBar" style="width: 0%;"></div>
+                                </div>
+                                <span style="font-size: 0.8rem;">5°C</span>
+                            </div>
+                        </div>
+
+                        <div class="result-card co2">
+                            <h4>🌱 CO₂ Absorption</h4>
+                            <div class="result-value" id="co2Value">0</div>
+                            <div class="result-desc">tonns of CO₂ per year</div>
+                            <div class="comparison-bar">
+                                <span style="font-size: 0.8rem;">0</span>
+                                <div class="bar-container">
+                                    <div class="bar-fill co2" id="co2Bar" style="width: 0%;"></div>
+                                </div>
+                                <span style="font-size: 0.8rem;">200k</span>
+                            </div>
+                        </div>
+
+                        <div class="result-card energy">
+                            <h4>⚡ Energy Savings</h4>
+                            <div class="result-value" id="energyValue">0%</div>
+                            <div class="result-desc" id="energyDesc">Cooling and Heating</div>
+                        </div>
+
+                        <div class="result-card pollution">
+                            <h4>💨 Air Quality Improvement</h4>
+                            <div class="result-value" id="pollutionValue">0</div>
+                            <div class="result-desc" id="pollutionDesc">PM2.5 y NO₂</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 1.5rem; padding: 1rem; background: rgba(0, 212, 255, 0.1); border-radius: 10px; border-left: 4px solid #00d4ff;">
+                        <div style="font-size: 0.9rem; opacity: 0.9;">
+                            <strong>Population:</strong> <span id="popValue">500,000</span> inhabitants
+                            <br>
+                            <strong>Density:</strong> <span id="densityValue">5,000</span> hab/km²
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <div id="AI_note">
+            <p>Note. The final user interface was made using Mistral AI (LLM)</p>
+        </div>
+    </div>
+
+    <script>
+        class City {
+            constructor({
+                name,
+                population = 500000,
+                area = 100,
+                builtUpArea = 0.7,
+                greenCover = 0.15,
+                roofArea = 0.2,
+                carModalSplit = 0.6,
+                avgCommuteTime = 30,
+                avgCarOwnership = 0.5,
+                climate = 'mediterranean',
+                albedo = 0.15,
+                pollution = { pm25: 20, no2: 30 },
+                energyMix = { renewable: 0.3, fossil: 0.7 },
+            }) {
+                this.name = name;
+                this.population = population;
+                this.area = area;
+                this.density = population/area;
+                this.builtUpArea = builtUpArea;
+                this.greenCover = greenCover;
+                this.roofArea = roofArea;
+                this.carModalSplit = carModalSplit;
+                this.avgCommuteTime = avgCommuteTime;
+                this.avgCarOwnership = avgCarOwnership;
+                this.climate = climate;
+                this.albedo = albedo;
+                this.pollution = pollution;
+                this.energyMix = energyMix;
+                this.interventions = {
+                    greenCover: 0,
+                    coldRoofs: 0,
+                    greenRoofs: 0,
+                    solarRoofs: 0,
+                    bikeLanes: 0,
+                    busLines: 0,
+                    metroLines: 0,
+                    pedestrianZones: 0,
+                    populationSpread: 0,
+                    populationGrowth: 0,
+                    urbanForests: 0,
+                };
+            }
+
+            applyInterventions(interventions) {
+                this.interventions = { ...this.interventions, ...interventions };
+            }
+
+            calculate() {
+                const {
+                    greenCover: extraGreen,
+                    coldRoofs,
+                    greenRoofs,
+                    solarRoofs,
+                    bikeLanes,
+                    busLines,
+                    metroLines,
+                    pedestrianZones,
+                    populationSpread,
+                    populationGrowth,
+                    urbanForests
+                } = this.interventions;
+
+                const newDensity = this.density*(1+populationGrowth/100)/(1+populationSpread/100);
+                const expandedArea = this.area * (1+populationSpread/100);
+                const newPopulation = this.population * (1 + populationGrowth / 100);
+                const newGreenCover = Math.min(0.9, this.greenCover + extraGreen/100 + (urbanForests/expandedArea));
+                const newBuiltUpArea = this.builtUpArea - extraGreen/100;
+
+                let uhi =
+                    newBuiltUpArea * 0.15 +
+                    -0.43 * Math.log(expandedArea) + 0.68 * Math.log(newPopulation) - 5.84 +
+                    (0.2 - this.albedo) * 0.8;
+
+                uhi -= newGreenCover * 0.05;
+                uhi -= coldRoofs * 0.1 * 10 + greenRoofs * 0.15 * 10;
+                uhi += solarRoofs * 0.0005;
+                uhi -= urbanForests * 0.02;
+
+                const co2Absorption =
+                    newGreenCover * expandedArea * 1000 * 0.5 +
+                    greenRoofs * this.roofArea * expandedArea * 1000 * 0.01 +
+                    urbanForests * 1000 * 5;
+
+                const energySavings = {
+                    cooling: coldRoofs * 0.15 + greenRoofs * 0.1,
+                    heating: greenRoofs * 0.05,
+                    electricity: solarRoofs * this.roofArea * expandedArea * 150,
+                };
+
+                const pollutionReduction = {
+                    pm25:
+                        newGreenCover * 0.5 +
+                        pedestrianZones * 0.2 +
+                        (bikeLanes / 10) * 0.1 +
+                        (busLines / 10) * 0.1 +
+                        urbanForests * 0.15,
+                    no2:
+                        newGreenCover * 0.3 +
+                        pedestrianZones * 0.3 +
+                        (bikeLanes / 10) * 0.2 +
+                        (busLines / 10) * 0.2 +
+                        urbanForests * 0.2,
+                };
+
+                const newCarModalSplit = Math.max(0.1, this.carModalSplit * (1 - ((bikeLanes / 200) + (busLines / 300) + (metroLines / 80) )*100/expandedArea )*(1-(pedestrianZones/expandedArea)));
+                
+                uhi -= (this.carModalSplit - newCarModalSplit) * 0.2;
+
+                return {
+                    city: this.name,
+                    population: newPopulation.toFixed(0),
+                    density: newDensity.toFixed(0),
+                    urbanHeat: {
+                        delta: Math.max(0, uhi).toFixed(2),
+                    },
+                    co2: {
+                        absorption: co2Absorption.toFixed(0),
+                    },
+                    energy: {
+                        savings: energySavings,
+                    },
+                    pollution: {
+                        reduction: pollutionReduction,
+                    }
+                };
+            }
+        }
+
+        const cityPresets = {
+            barcelona: new City({
+                name: 'Barcelona',
+                population: 1620000,
+                area: 101,
+                builtUpArea: 0.72,
+                greenCover: 0.12,
+                carModalSplit: 0.45,
+                bikeModalSplit: 0.08,
+                avgCommuteTime: 28,
+                pollution: { pm25: 22, no2: 35 },
+            }),
+            madrid: new City({
+                name: 'Madrid',
+                population: 3223000,
+                area: 604,
+                builtUpArea: 0.68,
+                greenCover: 0.18,
+                carModalSplit: 0.50,
+                bikeModalSplit: 0.03,
+                avgCommuteTime: 35,
+            }),
+            sevilla: new City({
+                name: 'Sevilla',
+                population: 690000,
+                area: 140,
+                builtUpArea: 0.65,
+                greenCover: 0.20,
+                carModalSplit: 0.48,
+                bikeModalSplit: 0.09,
+                avgCommuteTime: 25,
+            }),
+            tokyo: new City({
+                name: 'Tokio',
+                population: 13960000,
+                area: 622,
+                builtUpArea: 0.85,
+                greenCover: 0.08,
+                carModalSplit: 0.15,
+                bikeModalSplit: 0.15,
+                transitModalSplit: 0.60,
+                avgCommuteTime: 45,
+            }),
+            newyork: new City({
+                name: 'Nueva York',
+                population: 8336000,
+                area: 783,
+                builtUpArea: 0.75,
+                greenCover: 0.14,
+                carModalSplit: 0.28,
+                bikeModalSplit: 0.02,
+                transitModalSplit: 0.56,
+                avgCommuteTime: 40,
+            }),
+            london: new City({
+                name: 'Londres',
+                population: 8982000,
+                area: 1572,
+                builtUpArea: 0.62,
+                greenCover: 0.33,
+                carModalSplit: 0.35,
+                bikeModalSplit: 0.05,
+                transitModalSplit: 0.42,
+                avgCommuteTime: 38,
+            }),
+            singapore: new City({
+                name: 'Singapur',
+                population: 5686000,
+                area: 728,
+                builtUpArea: 0.70,
+                greenCover: 0.25,
+                carModalSplit: 0.25,
+                bikeModalSplit: 0.02,
+                transitModalSplit: 0.67,
+                avgCommuteTime: 35,
+            }),
+        };
+
+        let currentCity = cityPresets.barcelona;
+
+        function updateSliderValues() {
+            document.getElementById('greenCoverValue').textContent = document.getElementById('greenCover').value + '%';
+            document.getElementById('urbanForestsValue').textContent = document.getElementById('urbanForests').value + ' km²';
+            document.getElementById('pedestrianZonesValue').textContent = document.getElementById('pedestrianZones').value + ' km²';
+            document.getElementById('coldRoofsValue').textContent = document.getElementById('coldRoofs').value + '%';
+            document.getElementById('greenRoofsValue').textContent = document.getElementById('greenRoofs').value + '%';
+            document.getElementById('solarRoofsValue').textContent = document.getElementById('solarRoofs').value + '%';
+            document.getElementById('bikeLanesValue').textContent = document.getElementById('bikeLanes').value + ' km';
+            document.getElementById('busLinesValue').textContent = document.getElementById('busLines').value + '%';
+            document.getElementById('metroLinesValue').textContent = document.getElementById('metroLines').value + ' km';
+            document.getElementById('populationGrowthValue').textContent = document.getElementById('populationGrowth').value + '%';
+            document.getElementById('populationSpreadValue').textContent = document.getElementById('populationSpread').value + '%';
+        }
+
+        function updateResults() {
+            const results = currentCity.calculate();
+
+            document.getElementById('uhiValue').textContent = '+' + results.urbanHeat.delta + '°C';
+            document.getElementById('uhiBar').style.width = (parseFloat(results.urbanHeat.delta) / 5 * 100) + '%';
+
+            document.getElementById('co2Value').textContent = Number(results.co2.absorption).toLocaleString();
+            document.getElementById('co2Bar').style.width = Math.min(100, (parseFloat(results.co2.absorption) / 200000 * 100)) + '%';
+
+            const totalEnergySavings = ((results.energy.savings.cooling + results.energy.savings.heating) * 100).toFixed(1);
+            document.getElementById('energyValue').textContent = totalEnergySavings + '%';
+            document.getElementById('energyDesc').textContent = `Cooling: ${(results.energy.savings.cooling*100).toFixed(1)}%, Heating: ${(results.energy.savings.heating*100).toFixed(1)}%`;
+
+            const totalPollution = (results.pollution.reduction.pm25 + results.pollution.reduction.no2).toFixed(1);
+            document.getElementById('pollutionValue').textContent = totalPollution;
+            document.getElementById('pollutionDesc').textContent = `PM2.5: -${results.pollution.reduction.pm25.toFixed(1)} µg/m³, NO₂: -${results.pollution.reduction.no2.toFixed(1)} µg/m³`;
+
+            document.getElementById('popValue').textContent = Number(results.population).toLocaleString();
+            document.getElementById('densityValue').textContent = Number(results.density).toLocaleString();
+        }
+
+        function applyChanges() {
+            const interventions = {
+                greenCover: parseFloat(document.getElementById('greenCover').value) /100,
+                urbanForests: parseFloat(document.getElementById('urbanForests').value),
+                pedestrianZones: parseFloat(document.getElementById('pedestrianZones').value),
+                coldRoofs: parseFloat(document.getElementById('coldRoofs').value) / 100,
+                greenRoofs: parseFloat(document.getElementById('greenRoofs').value) / 100,
+                solarRoofs: parseFloat(document.getElementById('solarRoofs').value) / 100,
+                bikeLanes: parseFloat(document.getElementById('bikeLanes').value),
+                busLines: parseFloat(document.getElementById('busLines').value),
+                metroLines: parseFloat(document.getElementById('metroLines').value),
+                populationGrowth: parseFloat(document.getElementById('populationGrowth').value),
+                populationSpread: parseFloat(document.getElementById('populationSpread').value),
+            };
+
+            currentCity.applyInterventions(interventions);
+            updateResults();
+        }
+
+        function resetInterventions() {
+            document.getElementById('greenCover').value = 0;
+            document.getElementById('urbanForests').value = 0;
+            document.getElementById('pedestrianZones').value = 0;
+            document.getElementById('coldRoofs').value = 0;
+            document.getElementById('greenRoofs').value = 0;
+            document.getElementById('solarRoofs').value = 0;
+            document.getElementById('bikeLanes').value = 0;
+            document.getElementById('busLines').value = 0;
+            document.getElementById('metroLines').value = 0;
+            document.getElementById('populationGrowth').value = 0;
+            document.getElementById('populationSpread').value = 0;
+
+            updateSliderValues();
+
+            currentCity.interventions = {
+                greenCover: 0,
+                coldRoofs: 0,
+                greenRoofs: 0,
+                solarRoofs: 0,
+                bikeLanes: 0,
+                busLines: 0,
+                metroLines: 0,
+                pedestrianZones: 0,
+                populationSpread: 0,
+                populationGrowth: 0,
+                urbanForests: 0,
+            };
+
+            updateResults();
+        }
+
+        function changeCity() {
+            const cityKey = document.getElementById('citySelect').value;
+            currentCity = cityPresets[cityKey];
+            resetInterventions();
+        }
+
+        document.getElementById('citySelect').addEventListener('change', changeCity);
+        document.getElementById('applyBtn').addEventListener('click', applyChanges);
+        document.getElementById('resetBtn').addEventListener('click', resetInterventions);
+
+        const sliders = document.querySelectorAll('input[type="range"]');
+        sliders.forEach(slider => {
+            slider.addEventListener('input', updateSliderValues);
+        });
+
+        updateSliderValues();
+        updateResults();
+    </script>
+</body>
+</html>
