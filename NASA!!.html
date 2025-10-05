@@ -335,10 +335,10 @@
                         </div>
                         <div class="slider-control">
                             <label>
-                                <span>Urban Forstes</span>
+                                <span>Urban Forests</span>
                                 <span id="urbanForestsValue">0 km²</span>
                             </label>
-                            <input type="range" id="urbanForests" min="0" max="30" value="0" step="1">
+                            <input type="range" id="urbanForests" min="0" max="40" value="0" step="1">
                         </div>
                     </div>
 
@@ -564,7 +564,7 @@
                 const co2Absorption =
                     newGreenCover * expandedArea * 1000 * 0.5 +
                     greenRoofs * this.roofArea * expandedArea * 1000 * 0.01 +
-                    urbanForests * 1000 * 5;
+                    urbanForests * 280;
 
                 const energySavings = {
                     cooling: coldRoofs * 0.15 + greenRoofs * 0.1,
