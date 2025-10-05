@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Future Cities | Simulator + SQLite (v3)</title>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <script src="https://sql.js.org/dist/sql-wasm.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <style>
+    :root { color-scheme: dark; }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+           background:linear-gradient(135deg,#0f0c29,#302b63,#24243e); color:#e5e7eb; overflow-x:hidden; }
+    .wrap { max-width:1400px; margin:0 auto; padding:1.25rem; }
+    .layout { display:grid; grid-template-columns: 360px 1fr; gap:1rem; align-items:start; }
+    @media (max-width:1100px){ .layout{ grid-template-columns: 1fr; } }
+    h1 { font-size:2rem; margin:0 0 .5rem 0;
+         background:linear-gradient(45deg,#00d4ff,#00ff88);
+         -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+    .panel { background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.12);
+             border-radius:16px; padding:1rem 1.1rem; backdrop-filter: blur(10px); }
+    .panel + .panel { margin-top:1rem; }
+    .section-title { color:#34d399; font-weight:700; }
+    .section-title.blue { color:#60a5fa; }
+    .section-title.orange { color:#fbbf24; }
+    .section-title.pink { color:#f472b6; }
+    .control { display:flex; align-items:center; justify-content:space-between; gap:.5rem; padding:.45rem .5rem; border-radius:10px; }
+    .control + .control { margin-top:.35rem; }
+    .control small { opacity:.85; min-width:56px; text-align:right; }
+    .range { appearance:none; width:100%; height:6px; background:rgba(255,255,255,.2); border-radius:4px; outline:none; }
+    .range::-webkit-slider-thumb{ appearance:none; width:16px; height:16px; border-radius:50%; background:#22d3ee; border:2px solid #0ea5e9; cursor:pointer; }
+    .range::-moz-range-thumb{ width:16px; height:16px; border-radius:50%; background:#22d3ee; border:2px solid #0ea5e9; cursor:pointer; }
+    .btn { padding:.7rem 1rem; border-radius:12px; border:none; cursor:pointer; font-weight:700; }
+    .btn-secondary { background:#784B56; color:#fff; width:100%; }
+    .status { margin-top:.5rem; font-size:.92rem; min-height:1.2em; }
+    .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:1rem; margin:1rem 0; }
+    .kpi { position:relative; background:rgba(255,255,255,0.05); border:2px solid rgba(255,255,255,0.12);
+           border-radius:14px; padding:1rem; overflow:hidden; }
+    .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--c),transparent);}
+    .kpi.temp { --c:#ff6b6b; } .kpi.solar{ --c:#ffd166; } .kpi.rain{ --c:#66ccff; }
+    .kpi.wind { --c:#4ecdc4; } .kpi.hum { --c:#95e1d3; }
+    .kpi .val { font-size:1.8rem; font-weight:800;
+                background:linear-gradient(45deg,#00d4ff,#00ff88); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+    .kpi .trend { margin-top:.25rem; font-size:.85rem; padding:.2rem .6rem; border-radius:20px; display:inline-block; }
+    .up{ background:rgba(255,107,107,0.2); color:#ff6b6b; } .down{ background:rgba(78,205,196,0.25); color:#4ecdc4; }
+    .chart { background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12);
+             border-radius:16px; padding:1rem; height:440px; margin-bottom:1rem; }
+    #map { background:#0b1220; border:1px solid rgba(255,255,255,0.12); border-radius:16px; height:420px; }
+
+    .grid4 { display:grid; grid-template-columns: repeat(auto-fit,minmax(240px,1fr)); gap:1rem; }
+    .card { background:#1f2947bb; border:1px solid #2b3760; border-radius:16px; padding:1rem; }
+    .card h4 { margin:0 0 .25rem 0; font-size:1rem; opacity:.95; }
+    .big { font-size:2rem; font-weight:800; line-height:1.1; }
+    .delta { font-weight:700; }
+    .good { color:#22c55e; } .bad{ color:#ef4444; } .neutral{ color:#60a5fa; }
+    .small { font-size:.9rem; opacity:.85; }
+    .pill { display:inline-block; border:1px solid #334155; background:#0f172a; padding:.1rem .5rem; border-radius:999px; font-size:.78rem; margin-right:.25rem; }
+    .pop { margin-top: .5rem; background:#0b132b; border:1px solid #1f2a44; border-radius:12px; padding:.5rem .75rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Future Cities — Simulator</h1>
+    <div class="layout">
+      <div>
+        <div class="panel">
+          <strong>🧭 Control Panel</strong>
+          <label for="citySelect">Select a City</label>
+          <select id="citySelect"><option value="">Loading cities...</option></select>
+        </div>
+        <div class="panel">
+          <div class="section-title">🌳 Green Areas & Nature</div>
+          <div class="control"><span> Additional Green Coverage</span><input class="range sim" id="s_cov" type="range" min="0" max="100" value="0"/><small><span id="s_cov_v">0</span>%</small></div>
+          <div class="control"><span> Urban Forests</span><input class="range sim" id="s_bosques" type="range" min="0" max="50" value="0"/><small><span id="s_bosques_v">0</span> km²</small></div>
+          <div class="control"><span> Pedestrian Areas</span><input class="range sim" id="s_peat" type="range" min="0" max="50" value="0"/><small><span id="s_peat_v">0</span> km²</small></div>
+        </div>
+        <div class="panel">
+          <div class="section-title blue">🏢 Roofs & Buildings</div>
+          <div class="control"><span> Cool Roofs</span><input class="range sim" id="s_cool" type="range" min="0" max="100" value="0"/><small><span id="s_cool_v">0</span>%</small></div>
+          <div class="control"><span> Green Roofs</span><input class="range sim" id="s_green" type="range" min="0" max="100" value="0"/><small><span id="s_green_v">0</span>%</small></div>
+          <div class="control"><span> Rooftop Solar Panels</span><input class="range sim" id="s_pv" type="range" min="0" max="100" value="0"/><small><span id="s_pv_v">0</span>%</small></div>
+        </div>
+        <div class="panel">
+          <div class="section-title orange">🚇 Transport & Mobility</div>
+          <div class="control"><span> Bike Lanes</span><input class="range sim" id="s_bici" type="range" min="0" max="200" value="0"/><small><span id="s_bici_v">0</span> km</small></div>
+          <div class="control"><span> Bus Frequency Improvement</span><input class="range sim" id="s_bus" type="range" min="0" max="100" value="0"/><small><span id="s_bus_v">0</span>%</small></div>
+          <div class="control"><span> New Metro Lines</span><input class="range sim" id="s_metro" type="range" min="0" max="50" value="0"/><small><span id="s_metro_v">0</span> km</small></div>
+        </div>
+        <div class="panel">
+          <div class="section-title pink">📈 Urban Growth</div>
+          <div class="control"><span> Population Growth</span><input class="range sim" id="s_pop" type="range" min="0" max="100" value="0"/><small><span id="s_pop_v">0</span>%</small></div>
+          <div class="control"><span> Urban Area Expansion</span><input class="range sim" id="s_area" type="range" min="0" max="200" value="0"/><small><span id="s_area_v">0</span> km²</small></div>
+        </div>
+        <div class="panel">
+          <button id="reset" class="btn btn-secondary">🧹 Reset</button>
+          <div id="leftStatus" class="status"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <label for="year">Year: <b><span id="yval">2030</span></b></label>
+          <input type="range" id="year" min="2001" max="2050" value="2030" step="1" class="range" style="width:100%">
+          <div id="status" class="status"></div>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi temp"><div>Temperature</div><div class="val" id="kT2M">—</div><div class="trend" id="tT2M">N/D</div></div>
+          <div class="kpi solar"><div>Radiation</div><div class="val" id="kSOL">—</div><div class="trend" id="tSOL">N/D</div></div>
+          <div class="kpi rain"><div>Precipitation</div><div class="val" id="kRAIN">—</div><div class="trend" id="tRAIN">N/D</div></div>
+          <div class="kpi wind"><div>Wind</div><div class="val" id="kWIND">—</div><div class="trend" id="tWIND">N/D</div></div>
+          <div class="kpi hum"><div>Humidity</div><div class="val" id="kHUM">—</div><div class="trend" id="tHUM">N/D</div></div>
+        </div>
+
+        <section class="panel chart">
+          <canvas id="chart"></canvas>
+        </section>
+
+        <section class="panel">
+          <h3>📊 Simulator Results</h3>
+          <div class="grid4" id="resultsGrid"></div>
+          <div class="pop" id="popInfo">Population: —</div>
+        </section>
+
+        <section class="panel">
+          <div id="map"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = s => document.querySelector(s);
+const statusEl = $('#status'), leftStatus = $('#leftStatus'), citySel = $('#citySelect'), slider = $('#year'), yval = $('#yval');
+const resultsGrid = $('#resultsGrid'), popInfo = $('#popInfo');
+const units = { T2M:'°C', ALLSKY_SFC_SW_DWN:'kWh/m²·day', PRECTOTCORR:'mm/día', WS2M:'m/s', RH2M:'%' };
+const ids = { T2M:['kT2M','tT2M'], ALLSKY_SFC_SW_DWN:['kSOL','tSOL'], PRECTOTCORR:['kRAIN','tRAIN'], WS2M:['kWIND','tWIND'], RH2M:['kHUM','tHUM'] };
+const pretty = { T2M:'Temperature', ALLSKY_SFC_SW_DWN:'Radiation', PRECTOTCORR:'Precipitation', WS2M:'Wind', RH2M:'Humidity' };
+
+function setTrend(el, diff, unit){ if(diff==null){ el.textContent='N/D'; el.className='trend'; return; }
+  el.textContent=(diff>=0?'↑ +':'↓ ')+Math.abs(diff).toFixed(2)+(unit?(' '+unit):'')+' vs ~last year';
+  el.className='trend ' + (diff>=0?'up':'down');
+}
+function signClass(key, diff){ if(diff==null) return 'neutral'; if(key==='T2M' || key==='PRECTOTCORR') return diff<0 ? 'good' : 'bad'; return 'neutral'; }
+function linReg(xs, ys){ const n=xs.length; if(n<2) return null;
+  const sx=xs.reduce((a,b)=>a+b,0), sy=ys.reduce((a,b)=>a+b,0);
+  const sxx=xs.reduce((a,b)=>a+b*b,0), sxy=xs.reduce((a,x,i)=>a+x*ys[i],0);
+  const d=n*sxx - sx*sx; if(Math.abs(d)<1e-9) return null;
+  const b=(n*sxy - sx*sy)/d, a=(sy - b*sx)/n; return {a,b};
+}
+
+let SQL=null, db=null, TABLE='monthly5';
+async function initSql(){ SQL = await initSqlJs({ locateFile:f=>`https://sql.js.org/dist/${f}` }); }
+async function loadDBFromServer(){
+  try{
+    const res = await fetch('cities.db');
+    if(!res.ok) throw new Error('cities.db not found (HTTP '+res.status+')');
+    const buf = await res.arrayBuffer();
+    db = new SQL.Database(new Uint8Array(buf));
+    statusEl.textContent = ''; // sin texto "usando tabla"
+    detectTable(); loadCities(); if(citySel.value){ refreshAll(); } initMap(); plotRiskMap();
+  }catch(e){ console.error(e); statusEl.textContent = '⚠️ Could not load cities.db. Place it next to this HTML or adjust Live Server.'; }
+}
+function detectTable(){
+  let r = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='monthly5'`);
+  if(r.length){ TABLE='monthly5'; return; }
+  r = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name='monthly'`);
+  if(r.length){ TABLE='monthly'; return; }
+  const rs = db.exec(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name`);
+  const names = rs.length ? rs[0].values.map(v=>v[0]) : [];
+  for(const n of names){
+    const info = db.exec(`PRAGMA table_info("${n}")`);
+    const cols = info.length ? info[0].values.map(v=>String(v[1]).toUpperCase()) : [];
+    if(cols.includes('YEAR') && cols.includes('CITY')){ TABLE=n; return; }
+  }
+  if(names.length){ TABLE = names[0]; }
+}
+function getColumns(table){ const r = db.exec(`PRAGMA table_info("${table}")`); return r.length ? r[0].values.map(v=>String(v[1])) : []; }
+function loadCities(){
+  const r = db.exec(`SELECT DISTINCT city FROM "${TABLE}" WHERE city IS NOT NULL ORDER BY city`);
+  const cities = r.length ? r[0].values.map(v=>v[0]) : [];
+  citySel.innerHTML = cities.length? cities.map(c=>`<option value="${c}">${c}</option>`).join('') : '<option value="">(sin ciudades)</option>';
+  citySel.value = cities[0] || '';
+}
+function getPopulation(city){
+  const cols = getColumns(TABLE).map(c => c.toUpperCase());
+  let col = null;
+  ['POPULATION','POP','POBLACION','POBLACIÓN'].some(k => { if(cols.includes(k)) { col = k; return true; } return false; });
+  if(!col) return null;
+  const sql = `SELECT "${col}" FROM "${TABLE}" WHERE city=$c ORDER BY "YEAR" DESC LIMIT 1;`;
+  const stmt = db.prepare(sql); stmt.bind({ $c: city });
+  let val = null; if(stmt.step()){ const row = stmt.getAsObject(); val = row[col]; }
+  stmt.free();
+  return (val!=null) ? +val : null;
+}
+function queryAnnual(city){
+  const cols = getColumns(TABLE);
+  const wanted = ["T2M","ALLSKY_SFC_SW_DWN","PRECTOTCORR","WS2M","RH2M"];
+  const present = wanted.filter(c=>cols.includes(c));
+  const selectCols = present.map(c=>`AVG("${c}") AS "${c}"`).join(', ');
+  const sql = `SELECT "YEAR" AS Y${selectCols ? ', ' + selectCols : ''} FROM "${TABLE}" WHERE city = $c GROUP BY "YEAR" ORDER BY "YEAR";`;
+  const stmt = db.prepare(sql); stmt.bind({ $c: city });
+  const rows = []; while(stmt.step()) rows.push(stmt.getAsObject()); stmt.free();
+  return { rows, present };
+}
+function buildRegs(rows, present){
+  const years = rows.map(r=>+r.Y);
+  const regs = {};
+  present.forEach(k=>{
+    const series = rows.map(r => (r[k]!=null? +r[k]: null)).filter(v=>v!=null);
+    regs[k] = (series.length>=2) ? linReg(years.slice(0,series.length), series) : null;
+  });
+  return regs;
+}
+function baseline(rows, present){ const last = rows[rows.length-1]; const base = {}; present.forEach(k => base[k] = (last && last[k]!=null) ? +last[k] : null); return base; }
+
+let chart;
+function ensureChart(){
+  if(chart) return chart;
+  const ctx = document.getElementById('chart').getContext('2d');
+  chart = new Chart(ctx, {
+    type:'line',
+    data:{ labels:[], datasets:[
+      { label:'Temperature (°C)', data:[], borderColor:'#ff6b6b', backgroundColor:'rgba(255,107,107,0.1)', tension:.35, yAxisID:'y' },
+      { label:'Precipitation (mm/día)', data:[], borderColor:'#66ccff', backgroundColor:'rgba(102,204,255,0.12)', tension:.35, yAxisID:'y1' },
+      { label:'Proyección sin intervenciones (T2M)', data:[], borderColor:'#ff6b6b', borderDash:[6,6], pointRadius:0, fill:false, tension:.35, yAxisID:'y' },
+      { label:'Proyección sin intervenciones (Prec.)', data:[], borderColor:'#66ccff', borderDash:[6,6], pointRadius:0, fill:false, tension:.35, yAxisID:'y1' }
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#fff'}}, tooltip:{backgroundColor:'rgba(0,0,0,.8)',titleColor:'#00d4ff',bodyColor:'#fff'}},
+      scales:{ x:{ticks:{color:'#fff'},grid:{color:'rgba(255,255,255,0.1)'}},
+               y:{position:'left',ticks:{color:'#ff6b6b'},grid:{color:'rgba(255,255,255,0.12)'}},
+               y1:{position:'right',ticks:{color:'#66ccff'},grid:{display:false}} }
+    }
+  });
+  return chart;
+}
+function refreshKPIsAndChart(city, rows, present, regs){
+  const Yproj = +slider.value;
+  const base = baseline(rows, present);
+  const proj = {}; present.forEach(key => { const r = regs[key]; proj[key] = (r ? r.a + r.b * Yproj : null); });
+
+  Object.entries(ids).forEach(([key, [valId, trId]])=>{
+    const valEl = document.getElementById(valId), trEl = document.getElementById(trId);
+    if(present.includes(key)){
+      const value = proj[key]!=null ? proj[key] : base[key];
+      valEl.textContent = value!=null ? value.toFixed(2)+' '+units[key] : '—';
+      const diff = (base[key]!=null && proj[key]!=null) ? (proj[key]-base[key]) : null;
+      setTrend(trEl, diff, units[key]);
+    }else{ valEl.textContent='—'; trEl.textContent='N/D'; trEl.className='trend'; }
+  });
+
+  // Build labels from min year in data to 2050
+  const labelsHist = rows.map(r=>+r.Y);
+  const minYear = Math.min(2001, labelsHist[0]||2001);
+  const yearsAll = []; for(let y=minYear; y<=2050; y++) yearsAll.push(y);
+
+  const c = ensureChart();
+  c.data.labels = yearsAll;
+
+  // Historical series aligned to labels
+  const mapYearTo = (arr, key) => {
+    const m = new Map(arr.map(r=>[+r.Y, r[key]!=null? +r[key] : null]));
+    return yearsAll.map(y => m.has(y)? m.get(y) : null);
+  };
+  c.data.datasets[0].data = present.includes('T2M') ? mapYearTo(rows,'T2M') : yearsAll.map(_=>null);
+  c.data.datasets[1].data = present.includes('PRECTOTCORR') ? mapYearTo(rows,'PRECTOTCORR') : yearsAll.map(_=>null);
+
+  // Projections (no interventions) from last historical+1 to 2050
+  const lastY = labelsHist[labelsHist.length-1] || 2001;
+  const projLine = (key) => {
+    const r = regs[key]; if(!r) return yearsAll.map(_=>null);
+    return yearsAll.map(y => (y>lastY ? (r.a + r.b*y) : null));
+  };
+  c.data.datasets[2].data = present.includes('T2M') ? projLine('T2M') : yearsAll.map(_=>null);
+  c.data.datasets[3].data = present.includes('PRECTOTCORR') ? projLine('PRECTOTCORR') : yearsAll.map(_=>null);
+
+  c.update();
+}
+function formatNum(n, unit){ if(n==null || isNaN(n)) return '—'; return (Math.abs(n) < 1 ? n.toFixed(2) : n.toFixed(2)) + (unit? ' '+unit: ''); }
+function buildResults(base, after, present){
+  resultsGrid.innerHTML = '';
+  present.forEach(key => {
+    const title = pretty[key] || key; const u = units[key] || '';
+    const deltaAbs = (base[key]!=null && after[key]!=null) ? (after[key]-base[key]) : null;
+    const klass = signClass(key, deltaAbs);
+    const sign = deltaAbs==null ? '' : (deltaAbs>0 ? '+' : '');
+    const html = `
+      <div class="card">
+        <h4>${title}</h4>
+        <div class="big ${klass}">${after[key]!=null ? after[key].toFixed(2) : '—'} <span class="small">${u}</span></div>
+        <div class="small">
+          <span class="pill">Impact of interventions:</span>
+          <span class="delta ${klass}">${sign}${formatNum(deltaAbs, u)}</span>
+        </div>
+      </div>`;
+    resultsGrid.insertAdjacentHTML('beforeend', html);
+  });
+}
+function applyModifiers(m){
+  const f = {T2M:0, PRECTOTCORR:0, WS2M:0, RH2M:0, ALLSKY_SFC_SW_DWN:0};
+  const cool = (m.s_cool||0)/100, green = (m.s_green||0)/100, cov = (m.s_cov||0)/100;
+  const bosq = (m.s_bosques||0)/50, peat = (m.s_peat||0)/50;
+  const bici = (m.s_bici||0)/200, bus = (m.s_bus||0)/100, metro = (m.s_metro||0)/50;
+  const pop = (m.s_pop||0)/100, area = (m.s_area||0)/200;
+  f.T2M += -0.15*cool -0.12*green -0.10*cov -0.06*bosq -0.04*peat + 0.10*pop + 0.05*area;
+  f.RH2M +=  0.04*green + 0.05*cov + 0.05*bosq + 0.02*peat;
+  f.PRECTOTCORR += -0.03*bici -0.03*bus -0.04*metro + 0.04*area + 0.03*pop;
+  for(const k of Object.keys(f)){ f[k] = Math.max(-0.3, Math.min(0.3, f[k])); }
+  return f;
+}
+function computeAfter(regs, Yproj, adj, present){
+  const after = {}; present.forEach(key => { const r = regs[key]; let p = (r ? r.a + r.b * Yproj : null); if(p!=null && adj[key]!=null){ p = p * (1 + adj[key]); } after[key] = p; });
+  return after;
+}
+let map, markersLayer;
+function initMap(){
+  if(map) return;
+  map = L.map('map', { zoomControl:true }).setView([40, 0], 2);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '&copy; OpenStreetMap' }).addTo(map);
+  markersLayer = L.layerGroup().addTo(map);
+}
+function getAllCitiesWithCoords(){
+  try{
+    const r = db.exec(`SELECT DISTINCT city, LAT, LON FROM "${TABLE}" WHERE LAT IS NOT NULL AND LON IS NOT NULL ORDER BY city;`);
+    return r.length ? r[0].values.map(v=>({city:v[0], lat:+v[1], lon:+v[2]})) : [];
+  }catch{ return []; }
+}
+function computeCityRisk(city){
+  const { rows, present } = queryAnnual(city);
+  if(rows.length<2) return null;
+  const years = rows.map(r=>+r.Y);
+  const slopeDec = {};
+  ['T2M','PRECTOTCORR','WS2M','RH2M'].forEach(k=>{
+    if(present.includes(k)){
+      const series = rows.map(r => r[k]!=null? +r[k] : null).filter(v=>v!=null);
+      if(series.length>=2){
+        const reg = linReg(years.slice(0,series.length), series);
+        slopeDec[k] = reg ? reg.b * 10 : null;
+      } else slopeDec[k]=null;
+    }else slopeDec[k]=null;
+  });
+  const parts = [];
+  if(slopeDec.T2M!=null) parts.push((slopeDec.T2M));
+  if(slopeDec.PRECTOTCORR!=null) parts.push((slopeDec.PRECTOTCORR));
+  if(slopeDec.WS2M!=null) parts.push((-slopeDec.WS2M));
+  const risk = parts.length ? parts.reduce((a,b)=>a+b,0)/parts.length : null;
+  return { risk, ...slopeDec };
+}
+function plotRiskMap(){
+  if(!map) return;
+  markersLayer.clearLayers();
+  const cities = getAllCitiesWithCoords();
+  if(!cities.length){ return; }
+  const stats = [];
+  cities.forEach(c=>{ const r = computeCityRisk(c.city); if(!r) return; stats.push({ city:c.city, lat:c.lat, lon:c.lon, ...r }); });
+  if(!stats.length) return;
+  const vals = stats.map(s=>s.risk).filter(v=>v!=null);
+  const min = Math.min(...vals), max = Math.max(...vals), span = (max-min)||1e-9;
+  stats.forEach(s => { s.norm = (s.risk!=null) ? (s.risk - min)/span : null; });
+  const maxRisk = Math.max(...stats.map(s=>s.norm).filter(v=>v!=null));
+  const bounds = [];
+  stats.forEach(o=>{
+    const color = o.norm==null ? '#9ca3af' : (o.norm>=0.66? '#ef4444' : o.norm>=0.33? '#f59e0b' : '#22c55e');
+    const radius = (o.norm === maxRisk) ? 11 : 8; const weight = (o.norm === maxRisk) ? 3 : 1;
+    const marker = L.circleMarker([o.lat, o.lon], { radius, color:'#000', weight, fillColor:color, fillOpacity:0.9 })
+      .bindPopup(`<b>${o.city}</b>${o.norm===maxRisk? ' <span style="color:#ef4444">★ Highest risk</span>':''}`);
+    marker.addTo(markersLayer); bounds.push([o.lat, o.lon]);
+  });
+  if(bounds.length){ map.fitBounds(bounds, { padding:[30,30] }); }
+}
+function readSliders(){
+  const ids = ['s_cov','s_bosques','s_peat','s_cool','s_green','s_pv','s_bici','s_bus','s_metro','s_pop','s_area'];
+  const o = {}; ids.forEach(id => o[id] = +(document.getElementById(id)?.value || 0)); return o;
+}
+function paintSliderValues(){
+  const pairs = [
+    ['s_cov','s_cov_v'],['s_bosques','s_bosques_v'],['s_peat','s_peat_v'],
+    ['s_cool','s_cool_v'],['s_green','s_green_v'],['s_pv','s_pv_v'],
+    ['s_bici','s_bici_v'],['s_bus','s_bus_v'],['s_metro','s_metro_v'],
+    ['s_pop','s_pop_v'],['s_area','s_area_v'],
+  ];
+  pairs.forEach(([i,l])=>{ const el=document.getElementById(i), lbl=document.getElementById(l); if(el&&lbl){ lbl.textContent = el.value; } });
+}
+function refreshAll(){
+  const city = citySel.value;
+  const { rows, present } = queryAnnual(city);
+  if(!rows.length){ statusEl.textContent='No data for that city.'; return; }
+  const regs = buildRegs(rows, present);
+  refreshKPIsAndChart(city, rows, present, regs);
+  const base = baseline(rows, present);
+  const adj = applyModifiers(readSliders());
+  const after = computeAfter(regs, +slider.value, adj, present);
+  buildResults(base, after, present);
+  const pop = getPopulation(city);
+  popInfo.textContent = 'Population: ' + (pop!=null ? Intl.NumberFormat('es-ES').format(Math.round(pop)) + ' inhabitants' : '—');
+  statusEl.textContent = '';
+}
+document.querySelectorAll('.sim').forEach(r=> r.addEventListener('input', ()=>{ paintSliderValues(); leftStatus.textContent=''; refreshAll(); }));
+document.getElementById('reset').addEventListener('click', ()=>{
+  document.querySelectorAll('.sim').forEach(r=> r.value = 0);
+  paintSliderValues(); leftStatus.textContent = 'Values reset.'; refreshAll();
+});
+slider.addEventListener('input', ()=>{ yval.textContent = slider.value; refreshAll(); });
+citySel.addEventListener('change', refreshAll);
+(async function(){ try{ await initSql(); await loadDBFromServer(); paintSliderValues(); }catch(e){ console.error(e); statusEl.textContent = 'Error inicializando.'; } })();
+</script>
+</body>
+</html>
